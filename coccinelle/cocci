@@ -41,8 +41,8 @@ ARGS="$ARGS --max-width=80"
 # What kind of processing to do on header files:
 options=$(grep -m1 '// Options:' "$1" | cut -d: -f2-)
 if [ -z "$options" ]; then
-	echo "No '// Options:' line found. Using default header search." >&2
 	options="--no-includes --include-headers"
+	echo "No '// Options:' line found. Using default header search: $options" >&2
 
 	# When doing specialized struct analysis, you'll want to use this,
 	# but it can be very slow:
