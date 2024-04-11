@@ -35,8 +35,11 @@ do
 	if test "$local_oid" = "$zero"
 	then
 		# Handle delete
-		:
+		echo >&2 "pre-push: Deleting branch."
 	else
+		since=$(git describe --match 'v*' --abbrev=0 $local_oid)
+		echo >&2 "pre-push: Most recent tag: $since"
+
 		# If we have a new branch, or if the remote HEAD is not an
 		# ancestor of the local HEAD, we're probably doing a --force,
 		# so we need to treat it as if we're pushing a new branch.
@@ -44,13 +47,24 @@ do
 		   ! git merge-base --is-ancestor $remote_oid $local_oid
 		then
 			# New branch, examine all commits since most recent tag.
-			since=$(git describe --tags --abbrev=0)
 			range="$since..$local_oid"
 			echo >&2 "pre-push: New branch. Checking $range"
 		else
 			# Update to existing branch, examine new commits
-			range="$remote_oid..$local_oid"
-			echo >&2 "pre-push: Existing branch. Checking $range"
+
+			# If we're pushing an updated branch we either
+			# have a few new commits to check or we've done
+			# a merge and push, in which case we want to only
+			# check since the last tag. If $remote_oid is
+			# contained by the $since tag, only check since
+			# that tag.
+			if git merge-base --is-ancestor $remote_oid $since ; then
+				range="$since..$local_oid"
+				echo >&2 "pre-push: Merged branch. Checking $range"
+			else
+				range="$remote_oid..$local_oid"
+				echo >&2 "pre-push: Existing branch. Checking $range"
+			fi
 		fi
 		~/bin/check_commits "$branch" "$range"
 
