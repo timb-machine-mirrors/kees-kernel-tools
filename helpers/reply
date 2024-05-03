@@ -1,0 +1,40 @@
+#!/bin/bash
+set -e
+dir=$(mktemp -t -d reply-XXXXXX)
+trap "rm -f $dir/* && rmdir $dir" EXIT
+cd $dir
+url=$(echo "$1" | sed 's|/$||')
+if ! echo "$url" | grep -q ^http ; then
+	url="https://lore.kernel.org/lkml/$url"
+else
+	schema=$(echo "$url" | cut -d: -f1)
+	if [ "$schema" != "https" ] ; then
+		echo "Why not 'https' schema?!" >&2
+		exit 1
+	fi
+
+	host=$(echo "$url" | cut -d/ -f3)
+	case "$host" in
+	lore.kernel.org)
+		list=$(echo "$url" | cut -d/ -f4)
+		if [ "$list" = "r" ]; then
+			list="all"
+		fi
+		msgid=$(echo "$url" | cut -d/ -f5)
+		;;
+	patchwork.kernel.org)
+		host=lore.kernel.org
+		list=all
+		msgid=$(echo "$url" | cut -d/ -f7)
+		;;
+	*)
+		echo "Expecting lore or patchwork host!?" >&2
+		exit 1
+	esac
+
+
+	url="https://$host/$list/$msgid"
+fi
+wget "$url"/t.mbox.gz
+gunzip t.mbox.gz
+mutt -f t.mbox
