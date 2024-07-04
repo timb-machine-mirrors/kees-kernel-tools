@@ -9,7 +9,7 @@
 # space to have git use the "To:" from the patches. Additional CCs can be
 # also added if needed.)
 #
-# for i in 0*.patch; do git send-email --transfer-encoding=8bit --8bit-encoding=UTF-8 --from='Kees Cook <keescook@chromium.org>' --to=' ' --cc='...' $i; done
+# for i in 0*.patch; do git send-email --transfer-encoding=8bit --8bit-encoding=UTF-8 --from='Kees Cook <kees@kernel.org>' --to=' ' --cc='...' $i; done
 #
 import sys, re, fnmatch, subprocess, operator, tempfile, argparse
 

@@ -81,14 +81,16 @@ do
 done
 
 # Refresh TOTP, if needed.
-if ! ssh git@gitolite.kernel.org 2fa isval >/dev/null; then
-	echo -n "Enter TOTP token: "
-	stty -F /dev/tty -echo
-	read token </dev/tty
-	# Show the line feed
-	echo ""
-	stty -F /dev/tty echo
-	ssh git@gitolite.kernel.org 2fa val "$token"
+if echo "$url" | grep -q kernel.org ; then
+	if ! ssh git@gitolite.kernel.org 2fa isval >/dev/null; then
+		echo -n "Enter TOTP token: "
+		stty -F /dev/tty -echo
+		read token </dev/tty
+		# Show the line feed
+		echo ""
+		stty -F /dev/tty echo
+		ssh git@gitolite.kernel.org 2fa val "$token"
+	fi
 fi
 
 exit 0
