@@ -29,7 +29,7 @@ quoted = re.compile(r'^"(.*)"$')
 # Ignore affiliations
 affiliated = re.compile(r'^(.*)\(.*\)$')
 # Ignore these identities, which are bots, collectives, twitter handles, or intentionally no email.
-email_ignore = re.compile(r'^(.*@syzkaller.*.appspot.*|syzkaller@googlegroups\.com|abaci-bugfix@linux.alibaba.com|(lpk|lkp)@intel.com|ci_notify@linaro.org|bot@kernelci.org|patchwork-bot\+.*@kernel.org|keescook\+coverity-bot@chromium.org|A cast of thousands|KASAN|Ryota Shiga(?: \(Flatt Security\))?|Thomas Sattler|many different companies|Coverity Static Analyzer.*|Marco Scardovi|https?://.*|Marian Rainer-Harbach|Max VA|.* working with ZDI|Android Treehugger Robot|tag, or it goes automatically\?|is not accompanied by a link to the report\.  Those links are|sanity checks in grsecurity|.* \(@[^@]*\))$')
+email_ignore = re.compile(r'^(.*@syzkaller.*.appspot.*|syzkaller@googlegroups\.com|abaci-bugfix@linux.alibaba.com|(lpk|lkp)@intel.com|ci_notify@linaro.org|bot@kernelci.org|patchwork-bot\+.*@kernel.org|keescook\+coverity-bot@chromium.org|coverity scan|smatch|should come before them, without any blank lines. As the|A cast of thousands|KASAN|Ryota Shiga(?: \(Flatt Security\))?|Thomas Sattler|many different companies|Coverity Static Analyzer.*|Marco Scardovi|https?://.*|Marian Rainer-Harbach|Max VA|.* working with ZDI|Android Treehugger Robot|tag, or it goes automatically\?|is not accompanied by a link to the report\.  Those links are|sanity checks in grsecurity|PaX.s SIZE_OVERFLOW plugin running on grsecurity.s syzkaller|Meysam Firouzi|Amirmohammad Eftekhar|Maarten van der Schrieck|.* \(@[^@]*\))$')
 # Ignore these names, which may use a "real" email address, but are considered bots.
 name_ignore = re.compile(r'^(kernel test robot|coverity-bot)$')
 # Ignore one-off typos.
@@ -169,6 +169,26 @@ full_replace = {
 		'Suraj Kandpal': 'Suraj Kandpal <suraj.kandpal@intel.com>',
 		# aa8a950a5d6b2094830aff834198777371ff91ff
 		'AceLan Kao <acelan.kao@canonical.com>': 'AceLan Kao <acelan@gmail.com>',
+		# e5011447376e1b050847ccb2ef7933176ce4de41
+		'Doug Anderson <dianders@google.com>': 'Douglas Anderson <dianders@chromium.org>',
+		# b49f700668fff7565b945dce823def79bff59bb0
+		'Prabhakar <prabhakar.csengg@gmail.com>': 'Lad Prabhakar <prabhakar.mahadev-lad.rj@bp.renesas.com>',
+		# 37f5b858a66543b2b67c0288280af623985abc29
+		'Daniel Kaehn <kaehndan@gmail.com>': 'Danny Kaehn <danny.kaehn@plexus.com>',
+		# ef43c30858754d99373a63dff33280a9969b49bc
+		'Tan Shaopeng <tan.shaopeng@jp.fujitsu.com>': 'Shaopeng Tan <tan.shaopeng@fujitsu.com>',
+		# d6a76c0a5a75b519ce81cd472077f9e76db5d6c3
+		'Shaoyun.liu <shaoyunl@amd.com>': 'shaoyunl <shaoyun.liu@amd.com>',
+		# c1839501fe3e67d98635f159dba8b170d08f6521
+		'edmund.raile <edmund.raile@proton.me>': 'Edmund Raile <edmund.raile@protonmail.com>',
+		# 68a24aba7c593eafa8fd00f2f76407b9b32b47a9
+		'Yang, Chenyuan <cy54@illinois.edu>': 'Chenyuan Yang <chenyuan0y@gmail.com>',
+		# 8e4ff684762b6503db45e8906e258faee080c336
+		'"Harris, James R" <james.r.harris@intel.com>': 'Jim Harris <jim.harris@samsung.com>',
+		# b646ce9ce99f74d3dee8fd56303b9255d3c278ec
+		'Matt Roper <matthew.d.roper at intel.com>': 'Matt Roper <matthew.d.roper@intel.com>',
+		# 84d2db91f14a32dc856a5972e3f0907089093c7a
+		'Bongsu Jeon': 'Bongsu Jeon <bongsu.jeon@samsung.com>',
 	     }
 
 def guess_name(name):
@@ -423,8 +443,8 @@ for line in sys.stdin:
 	line = hit.group(2).strip()
 
 	# Drop comment trailers
-	if '#' in line:
-		line = line.split('#', 1)[0].strip()
+	if ' #' in line:
+		line = line.split(' #', 1)[0].strip()
 
 	# Fix pasted "mailto" tags
 	hit = mailto.search(line)
