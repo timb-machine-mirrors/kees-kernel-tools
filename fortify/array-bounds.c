@@ -330,6 +330,12 @@ TEST_SIGNAL(alloc_size_enforced_by_sanitizer, SIGILL)
 	TEST_ACCESS(p, array, count, SHOULD_TRAP);
 }
 
+#if defined(__clang__)
+#define CLANG_ONLY(a...)	a
+#else
+#define CLANG_ONLY(a...)	/**/
+#endif
+
 /*
  * For a structure ending with a flexible array where the allocation
  * is hidden, but the array size member (identified with the
@@ -358,13 +364,15 @@ TEST(counted_by_seen_by_bdos)
 	EXPECT_EQ(__builtin_dynamic_object_size(&p->array[index], 1), 0); \
 	\
 	/* GCC's sanitizer trips even in __bdos */ \
-	/*EXPECT_EQ(__builtin_dynamic_object_size(&p->array[negative], 1), 0);*/ \
+	/* https://gcc.gnu.org/bugzilla/show_bug.cgi?id=116984 */ \
+	CLANG_ONLY(EXPECT_EQ(__builtin_dynamic_object_size(&p->array[negative], 1), 0)); \
 	/* Check array size alone. */					\
 	EXPECT_EQ(__builtin_object_size(p->array, 1), SIZE_MAX);	\
 	EXPECT_EQ(__builtin_dynamic_object_size(p->array, 1), p->count * sizeof(*p->array)); \
 	/* Check check entire object size. */				\
 	EXPECT_EQ(__builtin_object_size(p, 1), SIZE_MAX);		\
-	/* EXPECT_EQ(__builtin_dynamic_object_size(p, 1), sizeof(*p) + p->count * sizeof(*p->array)); */ \
+	/* https://gcc.gnu.org/bugzilla/show_bug.cgi?id=116984 */	\
+	CLANG_ONLY(EXPECT_EQ(__builtin_dynamic_object_size(p, 1), sizeof(*p) + p->count * sizeof(*p->array))); \
 	/* Check for out of bounds count. */				\
 	p->count = negative;						\
 	EXPECT_EQ(__builtin_dynamic_object_size(p->array, 1), 0) {	\
