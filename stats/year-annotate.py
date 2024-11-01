@@ -34,23 +34,29 @@ devnull = open("/dev/null", "w")
 cache_dir = os.path.expanduser("~/.cache/codeage")
 Path(cache_dir).mkdir(parents=True, exist_ok=True)
 
+def save_cache(cache, tag):
+    cachefile = "%s/%s.pickle" % (cache_dir, tag)
+    if opt.debug:
+        print("Saving cache %s ..." % (cachefile), file=sys.stderr)
+    pickle.dump(cache, open(cachefile, 'wb'), -1)
+
 def load_cache(tag):
     cachefile = "%s/%s.pickle" % (cache_dir, tag)
     if os.path.exists(cachefile):
         if opt.debug:
             print("Loading cache %s ..." % (cachefile), file=sys.stderr)
         cache = pickle.load(open(cachefile, 'rb'))
+        #try:
+        #    # Fix past typo
+        #    cache['ages'] = cache['age']
+        #    save_cache(cache, tag)
+        #except:
+        #    pass
     else:
         cache = dict()
         cache.setdefault('annotated', dict())
         cache.setdefault('ages', dict())
     return cache
-
-def save_cache(cache, tag):
-    cachefile = "%s/%s.pickle" % (cache_dir, tag)
-    if opt.debug:
-        print("Saving cache %s ..." % (cachefile), file=sys.stderr)
-    pickle.dump(cache, open(cachefile, 'wb'), -1)
 
 def run(cmd):
     #if opt.debug:
@@ -118,7 +124,7 @@ def process(tag, years):
         for year in years:
             report += ';%u' % (frombefore(year, epochs))
         # Save age span report
-        cache['age'] = report
+        cache['ages'] = report
         save_cache(cache, tag)
     print(report)
 
