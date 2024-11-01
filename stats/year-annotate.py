@@ -21,6 +21,7 @@ from itertools import repeat
 from multiprocessing import Pool, cpu_count
 import tqdm
 from packaging.version import Version
+from pathlib import Path
 
 # Globals (FIXME: turn this into a proper object)
 parser = optparse.OptionParser()
@@ -30,27 +31,26 @@ parser.add_option("-C", "--csv", help="Report as CSV file", action='store_true')
 
 devnull = open("/dev/null", "w")
 
-gittree = os.path.expanduser("~/src/linux-build/master")
+cache_dir = os.path.expanduser("~/.cache/codeage")
+Path(cache_dir).mkdir(parents=True, exist_ok=True)
 
-# TODO: split caches by tag -- less to write after each cycle
-cachefile = os.path.expanduser("~/.cache/year-blame.pickle")
-if os.path.exists(cachefile):
+def load_cache(tag):
+    cachefile = "%s/%s.pickle" % (cache_dir, tag)
+    if os.path.exists(cachefile):
+        if opt.debug:
+            print("Loading cache %s ..." % (cachefile), file=sys.stderr)
+        cache = pickle.load(open(cachefile, 'rb'))
+    else:
+        cache = dict()
+        cache.setdefault('annotated', dict())
+        cache.setdefault('ages', dict())
+    return cache
+
+def save_cache(cache, tag):
+    cachefile = "%s/%s.pickle" % (cache_dir, tag)
     if opt.debug:
-        print("Loading cache...", file=sys.stderr)
-    cache = pickle.load(open(cachefile, 'rb'))
-    try:
-        if 'v2.6.12' in cache:
-            print("Refactoring cache...", file=sys.stderr)
-            replace = dict()
-            replace['tags'] = cache
-            replace.setdefault('years', dict())
-            cache = replace
-    except:
-        pass
-else:
-    cache = dict()
-    cache.setdefault('tags', dict())
-    cache.setdefault('years', dict())
+        print("Saving cache %s ..." % (cachefile), file=sys.stderr)
+    pickle.dump(cache, open(cachefile, 'wb'), -1)
 
 def run(cmd):
     #if opt.debug:
@@ -64,28 +64,35 @@ def sha_to_date(sha):
     return date
 
 def annotate(tag, file):
-    dates = []
+    epochs = dict()
     ann = run(['git', 'annotate', '-t', '--line-porcelain', file, tag]).splitlines()
     for line in ann:
         if line.startswith('committer-time '):
-            tag, value = line.split(' ', 1)
-            dates.append(datetime.datetime.fromtimestamp(float(value)).year)
-    return dates
+            epoch = int(line.split(' ', 1)[1])
+            epochs.setdefault(epoch, 0)
+            epochs[epoch] += 1
+            #dates.append(datetime.datetime.fromtimestamp(float(epoch)).year)
+    #if opt.debug:
+    #    print(epochs)
+    return {file: epochs}
 
-def frombefore(before, stamps):
+def frombefore(before, epochs):
     count = 0
-    for stamp in stamps:
-        if stamp < before:
-            count += 1
+    for file in epochs:
+        for epoch in epochs[file]:
+            if epoch < before:
+                count += epochs[file][epoch]
     return count
 
 def process(tag, years):
+    cache = load_cache(tag)
+
     date = sha_to_date(tag)
-    stamps = []
-    if not tag in cache['tags']:
+    epochs = cache['annotated']
+    if len(epochs) == 0:
         if opt.debug:
-            print(date.strftime('Processing files at %Y-%m-%d ...'), file=sys.stderr)
-        # FIXME: do we want to exclude Documentation, samples, or tools subdirectories?
+            print(date.strftime('Processing files at %%s (%Y-%m-%d) ...') % (tag), file=sys.stderr)
+        # Do we want to exclude Documentation, samples, or tools subdirectories?
         # Or MAINTAINERS, dot files, etc?
         files = run(['git', 'ls-tree', '-r', '--name-only', tag]).splitlines()
         count = len(files)
@@ -94,34 +101,25 @@ def process(tag, years):
             results = p.starmap(annotate,
                                 tqdm.tqdm(zip(repeat(tag), files), total=count))
                                 #zip(repeat(tag), files))
-            # It seems we get an array of arrays from starmap()
+            # starmap produces a list of outputs from the function.
             for result in results:
-                stamps += result
+                epochs |= result
 
-        cache['tags'].setdefault(tag, dict())
-        cache['tags'][tag] = stamps
-        # Save this tag's stamps!
-        if opt.debug:
-            print("Writing cache...", file=sys.stderr)
-        pickle.dump(cache, open(cachefile, 'wb'), -1)
-    else:
-        stamps = cache['tags'][tag]
+        cache['annotated'] = epochs
+        # Save this tag's epochs!
+        save_cache(cache, tag)
 
-    day = date.strftime('%Y-%m-%d')
-    report = day
-    if not day in cache['years']:
+    report = cache['ages']
+    if len(report) == 0:
+        day = date.strftime('%Y-%m-%d')
+        report = day
         if opt.debug:
             print('Scanning ages ...                  ', file=sys.stderr)
         for year in years:
-            report += ';%u' % (frombefore(year, stamps))
-        # Save report
-        cache['years'].setdefault(year, dict())
-        cache['years'][day] = report
-        if opt.debug:
-            print("Writing cache...", file=sys.stderr)
-        pickle.dump(cache, open(cachefile, 'wb'), -1)
-    else:
-        report = cache['years'][day]
+            report += ';%u' % (frombefore(year, epochs))
+        # Save age span report
+        cache['age'] = report
+        save_cache(cache, tag)
     print(report)
 
 # Get the list of tags we're going to operate against
@@ -132,6 +130,7 @@ tags = [x
         for x in output.strip().splitlines()
         if x.startswith('v') and
            '-' not in x and
+           '_' not in x and
            x != 'v2.6.11' and
            ((x.startswith('v2.6.') and len(x.split('.')) == 3) or len(x.split('.')) == 2)
        ]
@@ -144,7 +143,9 @@ year_first = sha_to_date(tags[0]).year + 1
 year_last  = sha_to_date(tags[-1]).year + 1
 if opt.debug:
     print("%d .. %d" % (year_first, year_last), file=sys.stderr)
-years = range(year_first, year_last + 1, 1)
+years = [int(datetime.datetime.strptime('%d' % (year), '%Y').strftime("%s")) for year in range(year_first, year_last + 1, 1)]
+if opt.debug:
+    print(years, file=sys.stderr)
 
 # Walk tags
 for tag in tags:
