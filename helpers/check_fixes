@@ -30,6 +30,69 @@ strip_spaces()
 	echo "$str"
 }
 
+subject_matches()
+{
+	local sha="$1"
+	local subject="$2"
+	local target_subject
+
+	target_subject=$(git log -1 --format='%s' "$sha")
+	target_subject=$(strip_spaces "$target_subject")
+
+	# match with ellipses
+	case "$subject" in
+	*...)	subject="${subject%...}"
+		target_subject="${target_subject:0:${#subject}}"
+		;;
+	...*)	subject="${subject#...}"
+		target_subject="${target_subject: -${#subject}}"
+		;;
+	*\ ...\ *)
+		local s1="${subject% ... *}"
+		local s2="${subject#* ... }"
+		subject="$s1 $s2"
+		local t1="${target_subject:0:${#s1}}"
+		local t2="${target_subject: -${#s2}}"
+		target_subject="$t1 $t2"
+		;;
+	esac
+
+	subject=$(strip_spaces "$subject")
+	target_subject=$(strip_spaces "$target_subject")
+
+	if [ "$subject" == "${target_subject:0:${#subject}}" ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+get_full_sha()
+{
+	local short_sha="$1"
+	local subject="$2"
+	local long_sha
+	local sha=""
+
+	long_sha=($(git rev-parse --disambiguate="${short_sha}" 2> /dev/null))
+	if [ ${#long_sha[@]} -eq 1 ]; then
+		echo "${long_sha[0]}"
+		return
+	fi
+	if [ ${#long_sha[@]} -eq 0 ]; then
+		return
+	fi
+
+	# Otherwise, disambiguate the short id.
+	for sha in "${long_sha[@]}"; do
+		if subject_matches "${sha}" "${subject}" ; then
+			# Found the matching subject; stop here.
+			echo "${sha}"
+			return
+		fi
+	done
+}
+
 for c in $commits; do
 
 	printf -v commit_msg 'In commit\n\n  %s\n\n' \
@@ -61,11 +124,6 @@ for c in $commits; do
 			fi
 		else
 			printf '%s%s  - %s\n' "$commit_msg" "$fixes_msg" 'No SHA1 recognised'
-			commit_msg=''
-			continue
-		fi
-		if ! git rev-parse -q --verify "$sha" >/dev/null; then
-			printf '%s%s  - %s\n' "$commit_msg" "$fixes_msg" 'Target SHA1 does not exist'
 			commit_msg=''
 			continue
 		fi
@@ -101,31 +159,15 @@ for c in $commits; do
 
 		subject=$(strip_spaces "$subject")
 
-		target_subject=$(git log -1 --format='%s' "$sha")
-		target_subject=$(strip_spaces "$target_subject")
+		sha=$(get_full_sha "$sha" "$subject")
+		if [ -z "$sha" ]; then
+			printf '%s%s  - %s\n' "$commit_msg" "$fixes_msg" 'Target SHA1 does not exist'
+			commit_msg=''
+			continue
+		fi
 
-		# match with ellipses
-		case "$subject" in
-		*...)	subject="${subject%...}"
-			target_subject="${target_subject:0:${#subject}}"
-			;;
-		...*)	subject="${subject#...}"
-			target_subject="${target_subject: -${#subject}}"
-			;;
-		*\ ...\ *)
-			s1="${subject% ... *}"
-			s2="${subject#* ... }"
-			subject="$s1 $s2"
-			t1="${target_subject:0:${#s1}}"
-			t2="${target_subject: -${#s2}}"
-			target_subject="$t1 $t2"
-			;;
-		esac
-		subject=$(strip_spaces "$subject")
-		target_subject=$(strip_spaces "$target_subject")
-
-		if [ "$subject" != "${target_subject:0:${#subject}}" ]; then
-			msg="${msg:+${msg}${nl}}  - Subject does not match target commit subject${nl}    Just use${nl}${tab}git log -1 --format='Fixes: %h (\"%s\")'"
+		if ! subject_matches "${sha}" "${subject}" ; then
+			msg="${msg:+${msg}${nl}}  - Subject does not match target commit subject${nl}    Just use${nl}${tab}git log -1 --abbrev=12 --format='Fixes: %h (\"%s\")'"
 		fi
 #		lsha=$(cd "$Linus_tree" && git rev-parse -q --verify "$sha")
 #		if [ -z "$lsha" ]; then
