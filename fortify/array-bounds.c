@@ -110,8 +110,8 @@ struct composite {
 	struct annotated inner;
 };
 
-/* Not supported yet. */
-#if 0
+/* Initial support in development. */
+#ifdef COUNTED_BY_POINTERS
 struct ptr_annotated {
 	unsigned long flags;
 	int *array __counted_by(count);
@@ -212,6 +212,22 @@ static struct composite * noinline alloc_composite(int index)
 
 	return p;
 }
+
+#ifdef COUNTED_BY_POINTERS
+static struct ptr_annotated * noinline alloc_pointer(int index)
+{
+	struct ptr_annotated *p;
+	void *a;
+
+	/* Explicitly allocate out of order just to see if anything breaks. */
+	a = malloc(index * sizeof(*p->array));
+	p = malloc(sizeof(*p));
+	p->array = a;
+	p->count = index;
+
+	return p;
+}
+#endif
 
 /*
  * For a structure ending with a fixed-size array, sizeof(*p) should
@@ -351,6 +367,9 @@ TEST(counted_by_seen_by_bdos)
 	struct multi *m;
 	struct anon_struct *s;
 	struct composite *c;
+#ifdef COUNTED_BY_POINTERS
+	struct ptr_annotated *ptr;
+#endif
 	int index = MAX_INDEX + unconst;
 	int negative = -3 + unconst;
 
@@ -406,6 +425,11 @@ TEST(counted_by_seen_by_bdos)
 
 	c = alloc_composite(index);
 	CHECK(c, inner.array, inner.count);
+
+#ifdef COUNTED_BY_POINTERS
+	ptr = alloc_pointer(index);
+	CHECK(ptr, array, count);
+#endif
 
 #undef CHECK
 }
@@ -503,6 +527,19 @@ TEST_SIGNAL(counted_by_enforced_by_sanitizer_composite, SIGILL)
 	REPORT_SIZE(c->inner.array);
 	TEST_ACCESS(c, inner.array, index, SHOULD_TRAP);
 }
+
+#ifdef COUNTED_BY_POINTERS
+TEST_SIGNAL(counted_by_enforced_by_sanitizer_pointer, SIGILL)
+{
+	struct ptr_annotated *p;
+	int index = MAX_INDEX + unconst;
+
+	p = alloc_pointer(index);
+
+	REPORT_SIZE(p->array);
+	TEST_ACCESS(p, array, index, SHOULD_TRAP);
+}
+#endif
 
 /*
  * When both __alloc_size and __counted_by are available to calculate
