@@ -11,7 +11,7 @@
 # https://github.com/curl/stats/blob/master/codeage.plot
 #
 # cd ~/src/linux && year-annotate.py -d | tee codeage.csv
-import glob, sys, os
+import glob, sys, os, re
 import json
 import pickle
 import optparse
@@ -82,9 +82,18 @@ def annotate(tag, file):
     #    print(epochs)
     return {file: epochs}
 
-def frombefore(before, epochs):
+def frombefore(before, epochs, excludes):
     count = 0
     for file in epochs:
+        skip = False
+        for exclude in excludes:
+            if re.search(exclude, file):
+                skip = True
+                #if opt.debug:
+                #    print("Excluding %s" % (file), file=sys.stderr)
+                break
+        if skip:
+            continue
         for epoch in epochs[file]:
             if epoch < before:
                 count += epochs[file][epoch]
@@ -115,21 +124,22 @@ def process(tag, years):
         # Save this tag's epochs!
         save_cache(cache, tag)
 
-    report = cache['ages']
-    if len(report) == 0:
+    #report = cache['ages']
+    if True: #len(report) == 0:
         day = date.strftime('%Y-%m-%d')
         report = day
         if opt.debug:
             print('Scanning ages ...                  ', file=sys.stderr)
         for year in years:
-            report += ';%u' % (frombefore(year, epochs))
+            report += ';%u' % (frombefore(year, epochs, ['^drivers/']))
         # Save age span report
-        cache['ages'] = report
-        save_cache(cache, tag)
+        #cache['ages'] = report
+        #save_cache(cache, tag)
     print(report)
 
 # Get the list of tags we're going to operate against
-output = run(["git", "tag"])
+#output = run(["git", "tag"])
+output = run(["git", "tag", "--merged", "master"])
 # We want v2.6.Z and vX.Y only. No -rc, no stable versions, also not v2.6.11
 # almost: '^v(2\.6|[0-9])\.[0-9]*$'
 tags = [x
@@ -137,10 +147,12 @@ tags = [x
         if x.startswith('v') and
            '-' not in x and
            '_' not in x and
-           x != 'v2.6.11' and
-           ((x.startswith('v2.6.') and len(x.split('.')) == 3) or len(x.split('.')) == 2)
+           ((x.startswith('v2.') and len(x.split('.')) == 3) or len(x.split('.')) == 2)
        ]
 tags.sort(key=Version)
+# Remove v2.6.11 since it's not a regular tag
+if tags[0] == 'v2.6.11':
+    tags.pop(0)
 if opt.debug:
     print(tags, file=sys.stderr)
 

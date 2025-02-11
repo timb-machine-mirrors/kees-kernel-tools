@@ -14,7 +14,7 @@
 set terminal svg size 1920,1080 dynamic font ",24"
 
 # title
-set title "Linux kernel source code age\n{/*0.5Lines of code written per two-year segment}" font ",48"
+set title "Linux kernel (excluding drivers/*) source code age\n{/*0.5Lines of code written per two-year segment}" font ",48"
 # where's the legend
 set key left top font ",22"
 
