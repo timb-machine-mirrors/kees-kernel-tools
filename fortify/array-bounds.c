@@ -371,8 +371,13 @@ TEST(counted_by_seen_by_bdos)
 	EXPECT_EQ(__builtin_dynamic_object_size(p->array, 1), p->count * sizeof(*p->array)); \
 	/* Check check entire object size. */				\
 	EXPECT_EQ(__builtin_object_size(p, 1), SIZE_MAX);		\
+									\
 	/* https://gcc.gnu.org/bugzilla/show_bug.cgi?id=116984 */	\
-	CLANG_ONLY(EXPECT_EQ(__builtin_dynamic_object_size(p, 1), sizeof(*p) + p->count * sizeof(*p->array))); \
+	/* Whole object sizing also got disabled in Clang ... */	\
+	/*CLANG_ONLY(EXPECT_EQ(__builtin_dynamic_object_size(p, 1), sizeof(*p) + p->count * sizeof(*p->array)));*/ \
+	/* so instead just check for what GCC and Clang report: -1 */	\
+	EXPECT_EQ(__builtin_dynamic_object_size(p, 1), SIZE_MAX);	\
+									\
 	/* Check for out of bounds count. */				\
 	p->count = negative;						\
 	EXPECT_EQ(__builtin_dynamic_object_size(p->array, 1), 0) {	\
