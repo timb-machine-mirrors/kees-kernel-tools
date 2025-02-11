@@ -214,7 +214,7 @@ static struct composite * noinline alloc_composite(int index)
 }
 
 #ifdef COUNTED_BY_POINTERS
-static struct ptr_annotated * noinline alloc_pointer(int index)
+static struct ptr_annotated * noinline alloc_ptr_annotated(int index)
 {
 	struct ptr_annotated *p;
 	void *a;
@@ -361,18 +361,6 @@ TEST_SIGNAL(alloc_size_enforced_by_sanitizer, SIGILL)
  * __builtin_object_size() should remain unchanged compared to the
  * "unknown" cases above.
  */
-TEST(counted_by_seen_by_bdos)
-{
-	struct annotated *p;
-	struct multi *m;
-	struct anon_struct *s;
-	struct composite *c;
-#ifdef COUNTED_BY_POINTERS
-	struct ptr_annotated *ptr;
-#endif
-	int index = MAX_INDEX + unconst;
-	int negative = -3 + unconst;
-
 #define CHECK(p, array, count)						\
 	REPORT_SIZE(p->array);						\
 									\
@@ -411,28 +399,27 @@ TEST(counted_by_seen_by_bdos)
 	}								\
 	do { } while (0)
 
-	p = alloc_annotated(index);
-	CHECK(p, array, count);
+#define TEST_BDOS(name, type, array, count)	\
+TEST(counted_by_ ## name ## _seen_by_bdos)	\
+{						\
+	type *p;				\
+	int index = MAX_INDEX + unconst;	\
+	int negative = -3 + unconst;		\
+						\
+	p = alloc_ ## name(index);		\
+	CHECK(p, array, count);			\
+}
 
-	m = alloc_multi_ints(index);
-	CHECK(m, ints, count_ints);
-
-	m = alloc_multi_bytes(index);
-	CHECK(m, bytes, count_bytes);
-
-	s = alloc_anon_struct(index);
-	CHECK(s, array, count);
-
-	c = alloc_composite(index);
-	CHECK(c, inner.array, inner.count);
-
+TEST_BDOS(annotated, struct annotated, array, count)
+TEST_BDOS(multi_ints, struct multi, ints, count_ints)
+TEST_BDOS(multi_bytes, struct multi, bytes, count_bytes)
+TEST_BDOS(anon_struct, struct anon_struct, array, count)
+TEST_BDOS(composite, struct composite, inner.array, inner.count)
 #ifdef COUNTED_BY_POINTERS
-	ptr = alloc_pointer(index);
-	CHECK(ptr, array, count);
+TEST_BDOS(ptr_annotated, struct ptr_annotated, array, count)
 #endif
 
 #undef CHECK
-}
 
 /*
  * For a structure ending with a flexible array where the allocation
@@ -534,7 +521,7 @@ TEST_SIGNAL(counted_by_enforced_by_sanitizer_pointer, SIGILL)
 	struct ptr_annotated *p;
 	int index = MAX_INDEX + unconst;
 
-	p = alloc_pointer(index);
+	p = alloc_ptr_annotated(index);
 
 	REPORT_SIZE(p->array);
 	TEST_ACCESS(p, array, index, SHOULD_TRAP);
